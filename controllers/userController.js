@@ -1,7 +1,8 @@
 import { hash, compare } from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { models } from '../db.js'; // ✅ Import từ file db.js mà bạn đã config
-const { users: User } = models;
+import User from '../models/users.js'; // Adjust the import path to your actual model
+import { createUserSchema, loginSchema } from '../utils/validators/auth.js';
 
 // Get all users
 export async function getAllUsers(req, res) {
@@ -109,6 +110,124 @@ export async function login(req, res) {
 
     const { password: _, ...userData } = user.toJSON();
     res.json({ message: 'Login successful', token, user: userData });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getAllEmployees(req, res) {
+  try {
+    const employees = await User.findAll({
+      where: { role: 'employee' },
+      attributes: { exclude: ['password'] }
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: employees
+    });
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+}
+
+export async function createEmployee(req, res) {
+  try {
+    const { error, value } = createUserSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
+    const { username, full_name, email, password } = value;
+
+    if (!username || !email || !password || !full_name) {
+      return res.status(400).json({ error: 'Username, email, password, and full name are required' });
+    }
+
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) return res.status(400).json({ error: 'Email already in use' });
+
+    const existingUsername = await User.findOne({ where: { username } });
+    if (existingUsername) return res.status(400).json({ error: 'Username already taken' });
+
+    const hashedPassword = await hash(password, 10);
+    const newEmployee = await User.create({
+      username,
+      full_name,
+      email,
+      password: hashedPassword,
+      role: 'employee' // fixed to employee
+    });
+
+    const { password: _, ...employeeData } = newEmployee.toJSON();
+    res.status(201).json(employeeData);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function updateEmployee(req, res) {
+  try {
+    const { id } = req.params;
+
+    const employee = await User.findByPk(id);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    if (employee.role !== 'employee') {
+      return res.status(400).json({ error: 'User is not an employee' });
+    }
+
+    const { username, full_name, email, password, is_active } = req.body;
+
+    // Check for duplicate email/username if they're changing
+    if (email && email !== employee.email) {
+      const emailExists = await User.findOne({ where: { email } });
+      if (emailExists) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+    }
+
+    if (username && username !== employee.username) {
+      const usernameExists = await User.findOne({ where: { username } });
+      if (usernameExists) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
+    }
+
+    // Only hash password if it's being updated
+    let updatedPassword = employee.password;
+    if (password) {
+      updatedPassword = await hash(password, 10);
+    }
+
+    await employee.update({
+      username: username ?? employee.username,
+      full_name: full_name ?? employee.full_name,
+      email: email ?? employee.email,
+      password: updatedPassword,
+      is_active: is_active ?? employee.is_active,
+      updatedAt: new Date()
+    });
+
+    const { password: _, ...employeeData } = employee.toJSON();
+    res.status(200).json(employeeData);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function deleteEmployee(req, res) {
+  try {
+    const { id } = req.params;
+
+    const deleted = await User.destroy({ where: { id, role: 'employee' } });
+    if (!deleted) return res.status(404).json({ error: 'Employee not found' });
+
+    res.json({ message: 'Employee deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

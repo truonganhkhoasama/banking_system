@@ -19,3 +19,33 @@ export default async function getUserAccounts(req, res) {
     res.status(500).json({ message: 'Internal server error' });
   }
 }
+
+export async function depositToAccount(req, res) {
+  try {
+    const { amount, account_number } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Invalid deposit amount' });
+    }
+
+    const account = await Account.findOne({ where: { account_number } });
+
+    if (!account) {
+      return res.status(404).json({ message: 'Account not found' });
+    }
+
+    const balance = parseFloat(account.balance) + amount;
+    account.balance = balance;
+    await account.save();
+
+    res.status(200).json({
+      message: 'Deposit successful',
+      account_number: account.account_number,
+      deposited_amount: amount,
+      new_balance: account.balance
+    });
+  } catch (error) {
+    console.error('Error depositing to account:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
