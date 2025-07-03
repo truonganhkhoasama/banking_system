@@ -23,26 +23,25 @@ export default class LinkedBanks extends Model {
       type: DataTypes.TEXT,
       allowNull: false
     },
-    callback_url: {
+    shared_secret: {
       type: DataTypes.TEXT,
       allowNull: false
     },
-    createdat: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: Sequelize.Sequelize.literal('CURRENT_TIMESTAMP')
+    callback_url: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
-    updatedat: {
-      type: DataTypes.DATE,
+    is_active: {
+      type: DataTypes.BOOLEAN,
       allowNull: true,
-      defaultValue: Sequelize.Sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: true
     }
   }, {
     sequelize,
     tableName: 'linked_banks',
     schema: 'public',
     hasTrigger: true,
-    timestamps: false,
+    timestamps: true,
     indexes: [
       {
         name: "linked_banks_bank_code_key",

@@ -9,6 +9,7 @@ import transferRoutes from './routes/customers/transfer.routes.js';
 import debtRoutes from './routes/customers/debt.routes.js';
 import historyRoutes from './routes/customers/history.routes.js'
 import adminRoutes from './routes/admins/admin.routes.js';
+import bankRoutes from './routes/banks/bankIntegration.routes.js';
 
 dotenv.config();
 const app = express();
@@ -22,6 +23,7 @@ app.use('/customers', transferRoutes);
 app.use('/customers', debtRoutes);
 app.use('/customers', historyRoutes);
 app.use('/admin', adminRoutes);
+app.use('/banks', bankRoutes);
 
 
 

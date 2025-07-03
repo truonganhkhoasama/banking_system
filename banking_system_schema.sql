@@ -77,9 +77,11 @@ CREATE TABLE linked_banks (
     bank_code VARCHAR(20) UNIQUE NOT NULL,
     bank_name VARCHAR(100) NOT NULL,
     public_key TEXT NOT NULL,
-    callback_url TEXT NOT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    shared_secret TEXT NOT NULL,
+    callback_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE interbank_transactions (
@@ -176,19 +178,4 @@ FOR EACH ROW EXECUTE FUNCTION update_updatedAt_column();
 -- API_LOGS
 CREATE OR REPLACE TRIGGER trg_api_logs_updatedAt
 BEFORE UPDATE ON api_logs
-FOR EACH ROW EXECUTE FUNCTION update_updatedAt_column();
-
-CREATE TABLE linked_banks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bank_code VARCHAR(50) UNIQUE NOT NULL,
-    bank_name VARCHAR(100) NOT NULL,
-    shared_secret TEXT NOT NULL,
-    public_key TEXT NOT NULL,
-    key_type VARCHAR(10) CHECK (key_type IN ('rsa', 'pgp')) NOT NULL,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE OR REPLACE TRIGGER trg_linked_banks_updatedAt
-BEFORE UPDATE ON linked_banks
 FOR EACH ROW EXECUTE FUNCTION update_updatedAt_column();
