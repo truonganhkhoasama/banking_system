@@ -1,5 +1,5 @@
 import LinkedBank from '../models/linked_banks.js';
-import Account from '../models/account.js';
+import Account from '../models/accounts.js';
 import { isFresh, verifyHMAC, verifySignature } from '../utils/bankSecurity.js';
 import fs from 'fs';
 import crypto from 'crypto';
