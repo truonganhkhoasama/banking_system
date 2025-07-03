@@ -72,6 +72,8 @@ CREATE TABLE beneficiaries (
     CONSTRAINT unique_beneficiary UNIQUE (user_id, account_number, bank_code)
 );
 
+DROP TABLE IF EXISTS linked_banks;
+
 CREATE TABLE linked_banks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     bank_code VARCHAR(20) UNIQUE NOT NULL,
@@ -80,8 +82,8 @@ CREATE TABLE linked_banks (
     shared_secret TEXT NOT NULL,
     callback_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE interbank_transactions (
