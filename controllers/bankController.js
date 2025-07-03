@@ -1,6 +1,7 @@
 import LinkedBank from '../models/linked_banks.js';
 import Account from '../models/accounts.js';
-import { isFresh, signPayload, verifyHMAC, verifySignature } from '../utils/bankSecurity.js';
+import User from '../models/users.js';
+import { isFresh, verifyHMAC, verifySignature, signPayload } from '../utils/bankSecurity.js';
 import fs from 'fs';
 import crypto from 'crypto';
 import axios from 'axios';
@@ -31,8 +32,13 @@ export async function queryAccountInfo(req, res) {
             return res.status(403).json({ error: 'Invalid signature' });
         }
 
-        const account = await Account.findOne({ where: { account_number } });
-        if (!account) return res.status(404).json({ error: 'Account not found' });
+        const account = await Account.findOne({
+            where: { account_number },
+            include: {
+                model: User,
+                attributes: ['full_name'], // or whatever fields you want from the Users table
+            },
+        }); if (!account) return res.status(404).json({ error: 'Account not found' });
 
         const responseData = {
             account_number: account.account_number,
@@ -95,7 +101,7 @@ export async function queryExternalAccountInfo(req, res) {
         const privateKeyPath = path.join(process.cwd(), 'bank_system_private.pem');
         const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
-        const timestamp = Math.floor(Date.now() / 1000);
+        const timestamp = Math.floor(Date.now());
         const payload = `${account_number}.${timestamp}`;
         const hash = crypto.createHmac('sha256', sharedSecret).update(payload).digest('hex');
 
@@ -112,7 +118,15 @@ export async function queryExternalAccountInfo(req, res) {
             signature,
         });
 
-        res.json(response.data);
+        const { data: responseData, signature: responseSignature } = response.data;
+
+        // Use the public key of the responding bank
+        const isValid = verifySignature(responseData, responseSignature, bank.public_key);
+        if (!isValid) {
+            return res.status(403).json({ error: 'Invalid response signature' });
+        }
+
+        res.json({ verified: true, data: responseData });
     } catch (err) {
         console.error('Query error:', err.message);
         res.status(500).json({ error: err.message });
