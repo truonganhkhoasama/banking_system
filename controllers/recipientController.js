@@ -1,4 +1,5 @@
 import Recipient from '../models/beneficiaries.js';
+import { verifyExternalAccount } from '../utils/bankServices/externalBankServices.js';
 
 export async function getAllRecipients(req, res) {
   try {
@@ -19,21 +20,41 @@ export async function getAllRecipients(req, res) {
 export async function createRecipient(req, res) {
   try {
     const userId = req.user.id;
-    const { account_number, bank_code, alias_name } = req.body;
+    const { account_number, bank_code: inputBankCode, alias_name } = req.body;
 
-    // Prevent duplicates
+    // Determine internal vs. external
+    const is_internal = !inputBankCode;
+    const bank_code = is_internal ? null : inputBankCode;
+
+    // If external, validate that bank_code exists in linked_banks
+    if (!is_internal) {
+      try {
+        await verifyExternalAccount(bank_code, account_number);
+      } catch (err) {
+        return res.status(400).json({ message: `External account verification failed: ${err.message}` });
+      }
+    }
+
+    // Check for duplicates (NULL-safe)
     const exists = await Recipient.findOne({
-      where: { user_id: userId, account_number, bank_code },
+      where: {
+        user_id: userId,
+        account_number,
+        bank_code,
+      },
     });
+
     if (exists) {
       return res.status(409).json({ message: 'Recipient already exists.' });
     }
 
+    // Create recipient
     const recipient = await Recipient.create({
       user_id: userId,
       account_number,
       bank_code,
       alias_name,
+      is_internal,
     });
 
     res.status(201).json(recipient);
