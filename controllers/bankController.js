@@ -1,6 +1,6 @@
 import LinkedBank from '../models/linked_banks.js';
 import Account from '../models/accounts.js';
-import { isFresh, verifyHMAC, verifySignature } from '../utils/bankSecurity.js';
+import { isFresh, signPayload, verifyHMAC, verifySignature } from '../utils/bankSecurity.js';
 import fs from 'fs';
 import crypto from 'crypto';
 import axios from 'axios';
@@ -23,11 +23,11 @@ export async function queryAccountInfo(req, res) {
         }
 
         const payload = `${account_number}.${timestamp}`;
-        if (!verifyHMAC(sharedSecret, payload, hash)) {
+        if (!verifyHMAC(payload, sharedSecret, hash)) {
             return res.status(403).json({ error: 'Invalid hash' });
         }
 
-        if (!verifySignature(bank.public_key, payload, signature)) {
+        if (!verifySignature(payload, signature, bank.public_key)) {
             return res.status(403).json({ error: 'Invalid signature' });
         }
 
@@ -40,7 +40,16 @@ export async function queryAccountInfo(req, res) {
             balance: account.balance,
         };
 
-        const responseSignature = signPayload(process.env.PRIVATE_KEY, responseData);
+        const privateKeyPath = path.join(process.cwd(), 'bank_system_private.pem');
+        const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+
+        const responseSignature = signPayload(privateKey, responseData);
+
+        console.log('Received body:', req.body);
+        console.log('Bank:', bank);
+        console.log('Shared secret:', sharedSecret);
+        console.log('Payload:', payload);
+        console.log('Hash verified:', verifyHMAC(sharedSecret, payload, hash));
 
         return res.json({
             data: responseData,
