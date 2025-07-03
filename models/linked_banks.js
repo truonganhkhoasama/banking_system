@@ -35,13 +35,23 @@ export default class LinkedBanks extends Model {
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: true
+    },
+    createdat: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: Sequelize.Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updatedat: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: Sequelize.Sequelize.literal('CURRENT_TIMESTAMP')
     }
   }, {
     sequelize,
     tableName: 'linked_banks',
     schema: 'public',
     hasTrigger: true,
-    timestamps: true,
+    timestamps: false,
     indexes: [
       {
         name: "linked_banks_bank_code_key",

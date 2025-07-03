@@ -4,6 +4,7 @@ import { isFresh, verifyHMAC, verifySignature } from '../utils/bankSecurity.js';
 import fs from 'fs';
 import crypto from 'crypto';
 import axios from 'axios';
+import path from 'path';
 
 export async function queryAccountInfo(req, res) {
     try {
