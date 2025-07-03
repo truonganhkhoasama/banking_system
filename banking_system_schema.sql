@@ -73,7 +73,7 @@ CREATE TABLE beneficiaries (
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_beneficiary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_bank_code FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code),
+    CONSTRAINT fk_bank_code FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code) ON DELETE SET NULL,
 
     CONSTRAINT unique_beneficiary UNIQUE (user_id, account_number, bank_code)
 );
@@ -101,10 +101,11 @@ CREATE TABLE interbank_transactions (
 
     amount DECIMAL(15, 2) NOT NULL,
     status VARCHAR(20) CHECK (status IN ('success', 'failed', 'pending')) NOT NULL,
+    description TEXT,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_to_bank FOREIGN KEY (to_bank_code) REFERENCES linked_banks(bank_code),
-    CONSTRAINT fk_from_bank FOREIGN KEY (from_bank_code) REFERENCES linked_banks(bank_code),
+    CONSTRAINT fk_bank FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code) ON DELETE SET NULL,
+    CONSTRAINT fk_internal_account FOREIGN KEY (internal_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
 );
 
 -- ===================================
