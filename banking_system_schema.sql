@@ -65,9 +65,9 @@ CREATE TABLE beneficiaries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     account_number VARCHAR(20) NOT NULL,
-    bank_code VARCHAR(20), -- NULL if internal
+    bank_code VARCHAR(20) NULL, -- NULL if internal
     alias_name VARCHAR(100),
-    is_internal BOOLEAN NOT NULL DEFAULT FALSE,
+    is_internal BOOLEAN NOT NULL DEFAULT TRUE,
 
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -90,8 +90,6 @@ CREATE TABLE linked_banks (
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-DROP TABLE IF EXISTS interbank_transactions;
-
 CREATE TABLE interbank_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     direction VARCHAR(20) CHECK (direction IN ('incoming', 'outgoing')) NOT NULL,
@@ -105,7 +103,7 @@ CREATE TABLE interbank_transactions (
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_bank FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code) ON DELETE SET NULL,
-    CONSTRAINT fk_internal_account FOREIGN KEY (internal_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_internal_account FOREIGN KEY (internal_account_id) REFERENCES accounts(id) ON DELETE CASCADE
 );
 
 -- ===================================
