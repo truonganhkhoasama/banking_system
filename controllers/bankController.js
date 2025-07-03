@@ -13,6 +13,8 @@ import sendOtpToEmail from '../utils/email.js';
 import { sequelize } from '../db.js'
 import { Op } from 'sequelize';
 
+const TRANSFER_FEE = 1.00;
+
 export async function queryAccountInfo(req, res) {
     try {
         const { account_number, timestamp, bank_code, hash, signature } = req.body;
@@ -191,7 +193,7 @@ export async function initiateExternalTransfer(req, res) {
             return res.status(400).json({ message: 'Invalid destination account number' });
         }
 
-        const totalAmount = fee_payer === 'sender' ? amount + TRANSFER_FEE : amount;
+        const totalAmount = amount + TRANSFER_FEE;
 
         if (fromAccount.balance < totalAmount) {
             return res.status(400).json({ message: 'Insufficient balance to cover amount and fee' });
