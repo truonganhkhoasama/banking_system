@@ -36,13 +36,14 @@ export async function queryAccountInfo(req, res) {
             where: { account_number },
             include: {
                 model: User,
+                as: 'user',
                 attributes: ['full_name'], // or whatever fields you want from the Users table
             },
         }); if (!account) return res.status(404).json({ error: 'Account not found' });
 
         const responseData = {
             account_number: account.account_number,
-            full_name: account.full_name,
+            full_name: account.user.full_name,
             balance: account.balance,
         };
 
@@ -50,12 +51,6 @@ export async function queryAccountInfo(req, res) {
         const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
         const responseSignature = signPayload(privateKey, responseData);
-
-        console.log('Received body:', req.body);
-        console.log('Bank:', bank);
-        console.log('Shared secret:', sharedSecret);
-        console.log('Payload:', payload);
-        console.log('Hash verified:', verifyHMAC(sharedSecret, payload, hash));
 
         return res.json({
             data: responseData,
