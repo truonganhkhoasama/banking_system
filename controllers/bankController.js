@@ -67,27 +67,6 @@ export async function queryAccountInfo(req, res) {
     }
 };
 
-// export async function transferToOtherBank(req, res) {
-//     try {
-//         const { bank_code, target_account_number, amount } = req.body;
-
-//         // ✅ Confirm target account exists in external bank
-//         const result = await queryExternalAccountInfo(bank_code, target_account_number);
-//         const { full_name } = result.data;
-
-//         // ✅ Do your local balance deduction logic here
-
-//         // ✅ Optionally trigger deposit on the other bank (not shown yet)
-
-//         return res.json({
-//             message: `Transferred ${amount} to ${full_name} at ${bank_code}`,
-//         });
-//     } catch (err) {
-//         console.error(err);
-//         return res.status(500).json({ error: 'Transfer failed' });
-//     }
-// };
-
 
 
 export async function queryExternalAccountInfo(req, res) {
@@ -121,7 +100,7 @@ export async function queryExternalAccountInfo(req, res) {
         const { data: responseData, signature: responseSignature } = response.data;
 
         // Use the public key of the responding bank
-        const isValid = verifySignature(responseData, responseSignature, bank.public_key);
+        const isValid = verifySignature(JSON.stringify(responseData), responseSignature, bank.public_key);
         if (!isValid) {
             return res.status(403).json({ error: 'Invalid response signature' });
         }
