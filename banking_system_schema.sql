@@ -59,20 +59,24 @@ CREATE TABLE transactions (
 -- ===================================
 -- BENEFICIARIES & INTERBANK
 -- ===================================
+DROP TABLE IF EXISTS beneficiaries;
 
 CREATE TABLE beneficiaries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     account_number VARCHAR(20) NOT NULL,
-    bank_code VARCHAR(20) NOT NULL,
+    bank_code VARCHAR(20), -- NULL if internal
     alias_name VARCHAR(100),
+    is_internal BOOLEAN NOT NULL DEFAULT FALSE,
+
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT fk_beneficiary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_bank_code FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code),
+
     CONSTRAINT unique_beneficiary UNIQUE (user_id, account_number, bank_code)
 );
-
-DROP TABLE IF EXISTS linked_banks;
 
 CREATE TABLE linked_banks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,16 +90,21 @@ CREATE TABLE linked_banks (
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TABLE IF EXISTS interbank_transactions;
+
 CREATE TABLE interbank_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bank_code VARCHAR(20) NOT NULL,
-    account_number VARCHAR(20) NOT NULL,
+    direction VARCHAR(20) CHECK (direction IN ('incoming', 'outgoing')) NOT NULL,
+    internal_account_id UUID, -- FK to internal accounts
+    external_account_number VARCHAR(20),
+    bank_code VARCHAR(20),
+
     amount DECIMAL(15, 2) NOT NULL,
-    direction VARCHAR(20) CHECK (direction IN ('incoming', 'outgoing')),
-    signature_valid BOOLEAN DEFAULT FALSE,
-    status VARCHAR(20) CHECK (status IN ('success', 'failed', 'pending')),
+    status VARCHAR(20) CHECK (status IN ('success', 'failed', 'pending')) NOT NULL,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_to_bank FOREIGN KEY (to_bank_code) REFERENCES linked_banks(bank_code),
+    CONSTRAINT fk_from_bank FOREIGN KEY (from_bank_code) REFERENCES linked_banks(bank_code),
 );
 
 -- ===================================
