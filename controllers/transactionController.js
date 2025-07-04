@@ -1,7 +1,10 @@
 import Account from '../models/accounts.js';
 import User from '../models/users.js';
 import Transaction from '../models/transactions.js';
+import LinkedBank from '../models/linked_banks.js';
+import InterbankTransaction from '../models/interbank_transactions.js';
 import { Op } from 'sequelize';
+
 
 export async function getTransactionHistory(req, res) {
   try {
@@ -10,14 +13,14 @@ export async function getTransactionHistory(req, res) {
     const account = await Account.findOne({ where: { user_id: userId } });
     if (!account) return res.status(404).json({ message: 'Account not found' });
 
-    const transactions = await Transaction.findAll({
+    // Fetch internal transactions
+    const internalTxs = await Transaction.findAll({
       where: {
         [Op.or]: [
           { from_account_id: account.id },
           { to_account_id: account.id }
         ]
       },
-      order: [['createdat', 'DESC']],
       include: [
         {
           model: Account,
@@ -32,20 +35,11 @@ export async function getTransactionHistory(req, res) {
       ]
     });
 
-    // Gắn nhãn giao dịch theo hướng và loại
-    const formatted = transactions.map((tx) => {
-      let direction = '';
-      let label = '';
-
-      if (tx.type === 'transfer') {
-        direction = tx.from_account_id === account.id ? 'sent' : 'received';
-        label = direction === 'sent' ? 'Chuyển khoản' : 'Nhận tiền';
-      } else if (tx.type === 'debt_pay') {
-        direction = tx.from_account_id === account.id ? 'sent' : 'received';
-        label = direction === 'sent' ? 'Thanh toán nhắc nợ' : 'Nhận thanh toán nhắc nợ';
-      } else {
-        label = 'Khác';
-      }
+    const formattedInternal = internalTxs.map((tx) => {
+      let direction = tx.from_account_id === account.id ? 'sent' : 'received';
+      let label = tx.type === 'transfer'
+        ? (direction === 'sent' ? 'Chuyển khoản' : 'Nhận tiền')
+        : (tx.type === 'debt_pay' ? (direction === 'sent' ? 'Thanh toán nhắc nợ' : 'Nhận thanh toán nhắc nợ') : 'Khác');
 
       return {
         id: tx.id,
@@ -68,12 +62,49 @@ export async function getTransactionHistory(req, res) {
       };
     });
 
-    res.json({ account_id: account.id, transactions: formatted });
+    // Fetch interbank transactions
+    console.log('internal_account_id:', account.id);
+    console.log('typeof internal_account_id:', typeof account.id);
+    const interbankTxs = await InterbankTransaction.findAll({
+      where: {
+        internal_account_id: account.id
+      },
+      include: [
+        { model: LinkedBank, as: 'bank_code_linked_bank' }
+      ]
+    });
+
+    const formattedInterbank = interbankTxs.map((tx) => {
+      const isOutgoing = tx.direction === 'outgoing';
+      return {
+        id: tx.id,
+        type: 'interbank',
+        label: isOutgoing ? 'Chuyển liên ngân hàng' : 'Nhận liên ngân hàng',
+        direction: isOutgoing ? 'sent' : 'received',
+        amount: tx.amount,
+        fee: 0,
+        fee_payer: null,
+        description: tx.description,
+        timestamp: tx.createdAt,
+        from: isOutgoing
+          ? { account_number: account.account_number, name: req.user.full_name }
+          : { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code },
+        to: isOutgoing
+          ? { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code }
+          : { account_number: account.account_number, name: req.user.full_name }
+      };
+    });
+
+    const allTxs = [...formattedInternal, ...formattedInterbank];
+    allTxs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    res.json({ account_id: account.id, transactions: allTxs });
   } catch (error) {
     console.error('Error fetching transaction history:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
-};
+}
+
 
 export async function getAccountTransactionHistory(req, res) {
   try {
@@ -84,14 +115,14 @@ export async function getAccountTransactionHistory(req, res) {
       return res.status(404).json({ message: 'Account not found' });
     }
 
-    const transactions = await Transaction.findAll({
+    // Internal transactions
+    const internalTxs = await Transaction.findAll({
       where: {
         [Op.or]: [
           { from_account_id: account.id },
           { to_account_id: account.id }
         ]
       },
-      order: [['createdat', 'DESC']],
       include: [
         {
           model: Account,
@@ -106,19 +137,11 @@ export async function getAccountTransactionHistory(req, res) {
       ]
     });
 
-    const formatted = transactions.map((tx) => {
-      let direction = '';
-      let label = '';
-
-      if (tx.type === 'transfer') {
-        direction = tx.from_account_id === account.id ? 'sent' : 'received';
-        label = direction === 'sent' ? 'Chuyển khoản' : 'Nhận tiền';
-      } else if (tx.type === 'debt_pay') {
-        direction = tx.from_account_id === account.id ? 'sent' : 'received';
-        label = direction === 'sent' ? 'Thanh toán nhắc nợ' : 'Nhận thanh toán nhắc nợ';
-      } else {
-        label = 'Khác';
-      }
+    const formattedInternal = internalTxs.map((tx) => {
+      const direction = tx.from_account_id === account.id ? 'sent' : 'received';
+      const label = tx.type === 'transfer'
+        ? (direction === 'sent' ? 'Chuyển khoản' : 'Nhận tiền')
+        : (tx.type === 'debt_pay' ? (direction === 'sent' ? 'Thanh toán nhắc nợ' : 'Nhận thanh toán nhắc nợ') : 'Khác');
 
       return {
         id: tx.id,
@@ -129,7 +152,7 @@ export async function getAccountTransactionHistory(req, res) {
         fee: tx.fee,
         fee_payer: tx.fee_payer,
         description: tx.description,
-        timestamp: tx.createdat,
+        timestamp: tx.createdAt,
         from: {
           account_number: tx.from_account?.account_number,
           name: tx.from_account?.user?.full_name
@@ -141,14 +164,48 @@ export async function getAccountTransactionHistory(req, res) {
       };
     });
 
+    // Interbank transactions
+    const interbankTxs = await InterbankTransaction.findAll({
+      where: {
+        internal_account_id: account.id
+      },
+      include: [{ model: LinkedBank, as: 'bank_code_linked_bank' }]
+    });
+
+    const formattedInterbank = interbankTxs.map((tx) => {
+      const isOutgoing = tx.direction === 'outgoing';
+
+      return {
+        id: tx.id,
+        type: 'interbank',
+        label: isOutgoing ? 'Chuyển liên ngân hàng' : 'Nhận liên ngân hàng',
+        direction: isOutgoing ? 'sent' : 'received',
+        amount: tx.amount,
+        fee: 0,
+        fee_payer: null,
+        description: tx.description,
+        timestamp: tx.createdAt,
+        from: isOutgoing
+          ? { account_number: account.account_number, name: account.user?.full_name }
+          : { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code },
+        to: isOutgoing
+          ? { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code }
+          : { account_number: account.account_number, name: account.user?.full_name }
+      };
+    });
+
+    const allTxs = [...formattedInternal, ...formattedInterbank].sort(
+      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+    );
+
     res.json({
-      account_number: account.account_number,
       account_id: account.id,
-      transactions: formatted
+      account_number: account.account_number,
+      transactions: allTxs
     });
 
   } catch (error) {
-    console.error('Error fetching transaction history:', error);
+    console.error('Error fetching account transaction history:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
