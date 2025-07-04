@@ -26,12 +26,21 @@ export default class Beneficiaries extends Model {
     },
     bank_code: {
       type: DataTypes.STRING(20),
-      allowNull: false,
+      allowNull: true,
+      references: {
+        model: 'linked_banks',
+        key: 'bank_code'
+      },
       unique: "unique_beneficiary"
     },
     alias_name: {
       type: DataTypes.STRING(100),
       allowNull: true
+    },
+    is_internal: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
     },
     createdat: {
       type: DataTypes.DATE,
