@@ -117,7 +117,7 @@ export async function queryExternalAccountInfo(req, res) {
 
 export async function depositToAccount(req, res) {
     try {
-        const { account_number, amount, timestamp, bank_code, hash, signature, message } = req.body;
+        const { account_number, amount, timestamp, bank_code, hash, signature, message, from_account_number } = req.body;
 
         // 1. Freshness check
         if (!isFresh(timestamp)) {
@@ -129,7 +129,7 @@ export async function depositToAccount(req, res) {
         if (!bank) return res.status(403).json({ error: 'Unknown bank' });
 
         // 3. Shared secret + hash validation
-        const payload = `${account_number}.${amount}.${timestamp}`;
+        const payload = `${account_number}.${from_account_number}.${amount}.${timestamp}`;
         if (!verifyHMAC(payload, bank.shared_secret, hash)) {
             return res.status(403).json({ error: 'Invalid hash' });
         }
@@ -143,6 +143,8 @@ export async function depositToAccount(req, res) {
         const account = await Account.findOne({ where: { account_number } });
         if (!account) return res.status(404).json({ error: 'Account not found' });
 
+        console.log('hihi');
+
         const total = parseFloat(account.balance) + amount;
         account.balance = total;
         await account.save();
@@ -150,12 +152,13 @@ export async function depositToAccount(req, res) {
         await InterbankTransaction.create({
             direction: 'incoming',
             internal_account_id: account.id,
-            external_account_number: account_number,
+            external_account_number: from_account_number,
             bank_code,
             amount,
             status: 'success',
             description: message || `Deposit from ${bank_code}`,
         });
+
 
         const responsePayload = {
             status: 'success',
@@ -265,6 +268,7 @@ export async function externalDepositToLinkedBank(req, res) {
                     internal_account_id: fromAccount.id,
                     external_account_number: to_account_number,
                     bank_code,
+                    fee: TRANSFER_FEE,
                     amount,
                     status: 'pending',
                     description: message || null,
@@ -277,7 +281,7 @@ export async function externalDepositToLinkedBank(req, res) {
 
             // 4. Trigger external deposit
             const timestamp = Date.now();
-            const depositPayload = `${to_account_number}.${amount}.${timestamp}`;
+            const depositPayload = `${to_account_number}.${fromAccount.account_number}.${amount}.${timestamp}`;
             const hash = crypto
                 .createHmac('sha256', linkedBank.shared_secret)
                 .update(depositPayload)
@@ -293,6 +297,7 @@ export async function externalDepositToLinkedBank(req, res) {
 
             const depositRequestBody = {
                 account_number: to_account_number,
+                from_account_number: fromAccount.account_number, // ✅ new field
                 amount,
                 timestamp,
                 bank_code: process.env.BANK_CODE, // your own bank's code

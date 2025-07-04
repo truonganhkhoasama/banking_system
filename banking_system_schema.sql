@@ -100,6 +100,8 @@ CREATE TABLE interbank_transactions (
     amount DECIMAL(15, 2) NOT NULL,
     status VARCHAR(20) CHECK (status IN ('success', 'failed', 'pending')) NOT NULL,
     description TEXT,
+    fee DECIMAL(15, 2) DEFAULT 0.00,
+
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_bank FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code) ON DELETE SET NULL,

@@ -4,6 +4,7 @@ import Transaction from '../models/transactions.js';
 import LinkedBank from '../models/linked_banks.js';
 import InterbankTransaction from '../models/interbank_transactions.js';
 import { Op } from 'sequelize';
+import moment from 'moment';
 
 
 export async function getTransactionHistory(req, res) {
@@ -207,5 +208,53 @@ export async function getAccountTransactionHistory(req, res) {
   } catch (error) {
     console.error('Error fetching account transaction history:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function getInterbankReconciliation(req, res) {
+  try {
+    const start = req.query.start ? new Date(req.query.start) : moment().startOf('month').toDate();
+    const end = req.query.end ? new Date(req.query.end) : moment().endOf('month').toDate();
+    const bankCode = req.query.bank_code;
+
+    const transactions = await InterbankTransaction.findAll({
+      where: {
+        status: 'success',
+        createdat: {
+          [Op.between]: [start, end],
+        },
+        ...(bankCode && { bank_code: bankCode }),
+      },
+      include: [{
+        model: LinkedBank,
+        as: 'bank_code_linked_bank',
+        attributes: ['bank_code', 'bank_name'],
+      }],
+    });
+
+    // Aggregate the data
+    const result = {};
+    for (const tx of transactions) {
+      const bankCode = tx.bank_code;
+      const direction = tx.direction;
+
+      if (!result[bankCode]) {
+        result[bankCode] = {
+          bank_code: bankCode,
+          bank_name: tx.bank_code_linked_bank?.bank_name || '',
+          incoming: { total: 0, amount: 0, fee: 0 },
+          outgoing: { total: 0, amount: 0, fee: 0 },
+        };
+      }
+
+      result[bankCode][direction].total += 1;
+      result[bankCode][direction].amount += Number(tx.amount);
+      result[bankCode][direction].fee += Number(tx.fee);
+    }
+
+    res.json(Object.values(result));
+  } catch (err) {
+    console.error("Reconciliation error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
