@@ -12,8 +12,11 @@ import { generateOtpCode } from '../utils/otp.js';
 import sendOtpToEmail from '../utils/email.js';
 import { sequelize } from '../db.js'
 import { Op } from 'sequelize';
+import { verifyExternalAccount } from '../utils/bankServices/externalBankServices.js';
 
 const TRANSFER_FEE = 1.00;
+const OTP_EXPIRY_MINUTES = 5;
+
 
 export async function queryAccountInfo(req, res) {
     try {
@@ -71,42 +74,11 @@ export async function queryAccountInfo(req, res) {
 };
 
 
-
 export async function queryExternalAccountInfo(req, res) {
     try {
         const { bank_code, account_number } = req.params;
 
-        const bank = await LinkedBank.findOne({ where: { bank_code } });
-        if (!bank) return res.status(400).json({ error: 'Unknown bank' });
-
-        const sharedSecret = bank.shared_secret;
-        const privateKeyPath = path.join(process.cwd(), 'bank_system_private.pem');
-        const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
-
-        const timestamp = Math.floor(Date.now());
-        const payload = `${account_number}.${timestamp}`;
-        const hash = crypto.createHmac('sha256', sharedSecret).update(payload).digest('hex');
-
-        const signer = crypto.createSign('RSA-SHA256');
-        signer.update(payload);
-        signer.end();
-        const signature = signer.sign(privateKey, 'base64');
-
-        const response = await axios.post(`${bank.callback_url}/account-info`, {
-            account_number,
-            timestamp,
-            bank_code: process.env.BANK_CODE,
-            hash,
-            signature,
-        });
-
-        const { data: responseData, signature: responseSignature } = response.data;
-
-        // Use the public key of the responding bank
-        const isValid = verifySignature(JSON.stringify(responseData), responseSignature, bank.public_key);
-        if (!isValid) {
-            return res.status(403).json({ error: 'Invalid response signature' });
-        }
+        const responseData = await verifyExternalAccount(bank_code, account_number);
 
         res.json({ verified: true, data: responseData });
     } catch (err) {
@@ -142,8 +114,6 @@ export async function depositToAccount(req, res) {
         // 5. Deposit logic
         const account = await Account.findOne({ where: { account_number } });
         if (!account) return res.status(404).json({ error: 'Account not found' });
-
-        console.log('hihi');
 
         const total = parseFloat(account.balance) + amount;
         account.balance = total;
@@ -196,15 +166,23 @@ export async function initiateExternalTransfer(req, res) {
             return res.status(400).json({ message: 'Invalid destination account number' });
         }
 
-        const totalAmount = amount + TRANSFER_FEE;
+        const verification = await verifyExternalAccount({
+            bank_code,
+            account_number: to_account_number
+        });
 
+        if (!verification.success) {
+            return res.status(400).json({ message: verification.reason || 'Destination account not found at the specified bank' });
+        }
+
+        const totalAmount = amount + TRANSFER_FEE;
         if (fromAccount.balance < totalAmount) {
             return res.status(400).json({ message: 'Insufficient balance to cover amount and fee' });
         }
 
         // Generate OTP
         const otp = generateOtpCode();;
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+        const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); // 5 minutes
 
         await OtpCode.create({
             user_id: userId,
@@ -225,10 +203,14 @@ export async function initiateExternalTransfer(req, res) {
 
 
 export async function externalDepositToLinkedBank(req, res) {
+    const t = await sequelize.transaction();
+    let createdTx = null;
+
     try {
         const userId = req.user.id;
         const { bank_code, to_account_number, amount, otp_code, message } = req.body;
 
+        // 1. Validate OTP
         const otp = await OtpCode.findOne({
             where: {
                 user_id: userId,
@@ -239,111 +221,121 @@ export async function externalDepositToLinkedBank(req, res) {
             },
         });
 
-        if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP' });
+        if (!otp) {
+            await t.rollback();
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
 
+        // 2. Validate sender and balance
         const fromAccount = await Account.findOne({ where: { user_id: userId } });
-        if (!fromAccount) return res.status(400).json({ message: 'Invalid sender account' });
+        if (!fromAccount) {
+            await t.rollback();
+            return res.status(400).json({ message: 'Invalid sender account' });
+        }
+
+        const verification = await verifyExternalAccount({
+            bank_code,
+            account_number: to_account_number
+        });
+        if (!verification.success) {
+            await t.rollback();
+            return res.status(400).json({ message: verification.reason || 'Destination account not found at the specified bank' });
+        }
 
         const totalDeduct = amount + TRANSFER_FEE;
         if (fromAccount.balance < totalDeduct) {
+            await t.rollback();
             return res.status(400).json({ message: 'Insufficient balance for transfer and fee' });
         }
 
+        // 3. Validate target bank
         const linkedBank = await LinkedBank.findOne({ where: { bank_code } });
         if (!linkedBank || !linkedBank.is_active) {
+            await t.rollback();
             return res.status(400).json({ message: 'Invalid or inactive target bank' });
         }
 
-        await sequelize.transaction(async (t) => {
-            // 1. Deduct from sender
-            await fromAccount.update(
-                { balance: fromAccount.balance - totalDeduct },
-                { transaction: t }
-            );
+        // 4. Deduct funds and log transaction
+        await fromAccount.update(
+            { balance: fromAccount.balance - totalDeduct },
+            { transaction: t }
+        );
 
-            // 2. Log transaction
-            await InterbankTransaction.create(
-                {
-                    direction: 'outgoing',
-                    internal_account_id: fromAccount.id,
-                    external_account_number: to_account_number,
-                    bank_code,
-                    fee: TRANSFER_FEE,
-                    amount,
-                    status: 'pending',
-                    description: message || null,
-                },
-                { transaction: t }
-            );
+        createdTx = await InterbankTransaction.create({
+            direction: 'outgoing',
+            internal_account_id: fromAccount.id,
+            external_account_number: to_account_number,
+            bank_code,
+            fee: TRANSFER_FEE,
+            amount,
+            status: 'pending',
+            description: message || null,
+        }, { transaction: t });
 
-            // 3. Mark OTP as used
-            await otp.update({ is_used: true }, { transaction: t });
+        await otp.update({ is_used: true }, { transaction: t });
 
-            // 4. Trigger external deposit
-            const timestamp = Date.now();
-            const depositPayload = `${to_account_number}.${fromAccount.account_number}.${amount}.${timestamp}`;
-            const hash = crypto
-                .createHmac('sha256', linkedBank.shared_secret)
-                .update(depositPayload)
-                .digest('hex');
+        // 5. Build secure payload
+        const timestamp = Date.now();
+        const depositPayload = `${to_account_number}.${fromAccount.account_number}.${amount}.${timestamp}`;
+        const hash = crypto.createHmac('sha256', linkedBank.shared_secret).update(depositPayload).digest('hex');
 
-            const privateKeyPath = path.join(process.cwd(), 'bank_system_private.pem');
-            const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+        const privateKeyPath = path.join(process.cwd(), 'bank_system_private.pem');
+        const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+        const signature = crypto.createSign('RSA-SHA256').update(depositPayload).end().sign(privateKey, 'base64');
 
-            const signer = crypto.createSign('RSA-SHA256');
-            signer.update(depositPayload);
-            signer.end();
-            const signature = signer.sign(privateKey, 'base64');
+        const depositRequestBody = {
+            account_number: to_account_number,
+            from_account_number: fromAccount.account_number,
+            amount,
+            timestamp,
+            bank_code: process.env.BANK_CODE,
+            hash,
+            signature,
+            message: message || `Deposit from ${fromAccount.account_number}`,
+        };
 
-            const depositRequestBody = {
-                account_number: to_account_number,
-                from_account_number: fromAccount.account_number, // ✅ new field
-                amount,
-                timestamp,
-                bank_code: process.env.BANK_CODE, // your own bank's code
-                hash,
-                signature,
-                message: message || `Deposit from ${fromAccount.account_number}`,
-            };
+        // 6. Send deposit request to external bank
+        const response = await axios.post(`${linkedBank.callback_url}${linkedBank.deposit_url}`, depositRequestBody);
+        const { data: responseData, signature: responseSignature } = response.data;
 
-            const response = await axios.post(`${linkedBank.callback_url}/deposit`, depositRequestBody);
+        // 7. Validate response
+        const isValidResponse = verifySignature(
+            JSON.stringify(responseData),
+            responseSignature,
+            linkedBank.public_key
+        );
 
-            const { data: responseData, signature: responseSignature } = response.data;
+        if (!isValidResponse) throw new Error('Invalid signature from target bank');
+        if (responseData.status !== 'success') throw new Error('External deposit failed');
 
-            // 5. Verify response
-            const isValidResponse = verifySignature(
-                JSON.stringify(responseData),
-                responseSignature,
-                linkedBank.public_key
-            );
-
-            if (!isValidResponse) {
-                throw new Error('Invalid signature from target bank');
+        // 8. Finalize transaction
+        await InterbankTransaction.update(
+            { status: 'success' },
+            {
+                where: { id: createdTx.id },
+                transaction: t,
             }
+        );
 
-            if (responseData.status !== 'success') {
-                throw new Error('External deposit failed');
-            }
-
-            // 6. Update status if all succeeded
-            await InterbankTransaction.update(
-                { status: 'success' },
-                {
-                    where: {
-                        direction: 'outgoing',
-                        internal_account_id: fromAccount.id,
-                        external_account_number: to_account_number,
-                        bank_code,
-                        status: 'pending',
-                    },
-                    transaction: t,
-                }
-            );
-        });
-
+        await t.commit();
         res.json({ message: 'External transfer initiated successfully' });
+
     } catch (error) {
-        console.error('Error in external transfer:', error);
+        await t.rollback();
+
+        // Attempt to mark the transaction as failed
+        if (createdTx) {
+            try {
+                await InterbankTransaction.update(
+                    { status: 'failed' },
+                    { where: { id: createdTx.id } }
+                );
+            } catch (err) {
+                console.error('Failed to mark transaction as failed:', err.message);
+            }
+        }
+
+        console.error('Error in external transfer:', error.message);
         res.status(500).json({ message: 'Internal server error' });
     }
 }

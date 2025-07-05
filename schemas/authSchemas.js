@@ -28,3 +28,11 @@ export const resetPasswordWithOtpSchema = Joi.object({
   otp: Joi.string().length(6).required(),
   newPassword: Joi.string().min(6).required(),
 });
+
+export const updateEmployeeSchema = Joi.object({
+  username: Joi.string().alphanum().min(3).max(30),
+  full_name: Joi.string().min(3).max(100),
+  email: Joi.string().email(),
+  password: Joi.string().min(6).max(100),
+  is_active: Joi.boolean()
+});

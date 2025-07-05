@@ -9,12 +9,13 @@ import { sequelize } from '../db.js'
 
 const TRANSFER_FEE = 1.00;
 
+const OTP_EXPIRY_MINUTES = 5;
+
 export const initiateTransfer = async (req, res) => {
   try {
     const { to_account_number, amount, message, fee_payer } = req.body;
     const userId = req.user.id;
 
-    // Validate accounts
     const fromAccount = await Account.findOne({ where: { user_id: userId } });
     const toAccount = await Account.findOne({ where: { account_number: to_account_number } });
 
@@ -26,27 +27,27 @@ export const initiateTransfer = async (req, res) => {
       return res.status(400).json({ message: 'Cannot transfer to self' });
     }
 
-    const totalAmount = fee_payer === 'sender' ? amount + TRANSFER_FEE : amount;
+    const fee = TRANSFER_FEE;
+    const totalAmount = fee_payer === 'sender' ? amount + fee : amount;
 
     if (fromAccount.balance < totalAmount) {
       return res.status(400).json({ message: 'Insufficient balance to cover amount and fee' });
     }
 
-    // Generate OTP
     const otp = generateOtpCode();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
     await OtpCode.create({
       user_id: userId,
       code: otp,
       type: 'transfer',
-      expires_at: expiresAt
+      expires_at: expiresAt,
     });
 
     const user = await User.findByPk(userId);
     await sendOtpToEmail(user.email, otp);
 
-    return res.json({ message: 'OTP sent to email' });
+    return res.json({ message: 'OTP sent to your email' });
   } catch (error) {
     console.error('Error initiating transfer:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -55,12 +56,8 @@ export const initiateTransfer = async (req, res) => {
 
 export const confirmTransfer = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { to_account_number, amount, otp_code, message, fee_payer } = req.body;
-
-    if (!['sender', 'receiver'].includes(fee_payer)) {
-      return res.status(400).json({ message: 'Invalid fee payer' });
-    }
+    const userId = req.user.id;
 
     const otp = await OtpCode.findOne({
       where: {
@@ -68,11 +65,13 @@ export const confirmTransfer = async (req, res) => {
         code: otp_code.toString(),
         type: 'transfer',
         is_used: false,
-        expires_at: { [Op.gt]: new Date() }
-      }
+        expires_at: { [Op.gt]: new Date() },
+      },
     });
 
-    if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP' });
+    if (!otp) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
 
     const fromAccount = await Account.findOne({ where: { user_id: userId } });
     const toAccount = await Account.findOne({ where: { account_number: to_account_number } });
@@ -83,26 +82,23 @@ export const confirmTransfer = async (req, res) => {
 
     const fee = TRANSFER_FEE;
     const totalDeduct = fee_payer === 'sender' ? amount + fee : amount;
+    const amountReceived = fee_payer === 'receiver' ? amount - fee : amount;
 
     if (fromAccount.balance < totalDeduct) {
       return res.status(400).json({ message: 'Insufficient balance for transfer and fee' });
     }
 
     await sequelize.transaction(async (t) => {
-      // Cập nhật số dư
       await fromAccount.update(
         { balance: fromAccount.balance - totalDeduct },
         { transaction: t }
       );
 
-      const receivedAmount = fee_payer === 'receiver' ? amount - fee : amount;
-
       await toAccount.update(
-        { balance: parseFloat(toAccount.balance) + receivedAmount },
+        { balance: toAccount.balance + amountReceived },
         { transaction: t }
       );
 
-      // Ghi log giao dịch
       await Transaction.create(
         {
           from_account_id: fromAccount.id,
@@ -112,16 +108,15 @@ export const confirmTransfer = async (req, res) => {
           fee_payer,
           type: 'transfer',
           description: message || 'Internal transfer',
-          status: 'success'
+          status: 'success',
         },
         { transaction: t }
       );
 
-      // Đánh dấu OTP đã dùng
       await otp.update({ is_used: true }, { transaction: t });
     });
 
-    res.json({ message: 'Transfer successful' });
+    return res.json({ message: 'Transfer successful' });
   } catch (error) {
     console.error('Error confirming transfer:', error);
     res.status(500).json({ message: 'Internal server error' });

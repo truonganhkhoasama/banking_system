@@ -11,19 +11,23 @@ import { sequelize } from '../db.js'
 
 const TRANSFER_FEE = 1.00;
 
-export async function createDebtReminder(req, res){
+export async function createDebtReminder(req, res) {
   try {
+    const { toUserId, amount, description } = req.body;
+
     const reminder = await DebtReminder.create({
       from_user_id: req.user.id,
-      to_user_id: req.body.toUserId,
-      amount: req.body.amount,
-      description: req.body.description,
+      to_user_id: toUserId,
+      amount,
+      description,
     });
+
     res.status(201).json(reminder);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error creating debt reminder:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-};
+}
 
 export async function getAllDebtReminders(req, res) {
   try {
@@ -55,8 +59,8 @@ export async function getAllDebtReminders(req, res) {
   }
 }
 
-export async function deleteDebtReminder(req, res){
-    try {
+export async function deleteDebtReminder(req, res) {
+  try {
     const reminder = await DebtReminder.findByPk(req.params.id);
     if (!reminder) return res.status(404).json({ error: 'Not found' });
 

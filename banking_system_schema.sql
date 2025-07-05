@@ -59,7 +59,6 @@ CREATE TABLE transactions (
 -- ===================================
 -- BENEFICIARIES & INTERBANK
 -- ===================================
-DROP TABLE IF EXISTS beneficiaries;
 
 CREATE TABLE beneficiaries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -85,6 +84,8 @@ CREATE TABLE linked_banks (
     public_key TEXT NOT NULL,
     shared_secret TEXT NOT NULL,
     callback_url TEXT,
+    deposit_url TEXT,
+    verify_account_url TEXT;
     is_active BOOLEAN DEFAULT TRUE,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP

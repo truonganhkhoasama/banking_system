@@ -24,10 +24,6 @@ export async function depositToAccount(req, res) {
   try {
     const { amount, account_number } = req.body;
 
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ message: 'Invalid deposit amount' });
-    }
-
     const account = await Account.findOne({ where: { account_number } });
 
     if (!account) {

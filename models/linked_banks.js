@@ -45,6 +45,14 @@ export default class LinkedBanks extends Model {
       type: DataTypes.DATE,
       allowNull: true,
       defaultValue: Sequelize.Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    deposit_url: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    verify_account_url: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
     sequelize,

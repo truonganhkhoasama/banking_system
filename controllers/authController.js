@@ -3,17 +3,13 @@ import jwt from 'jsonwebtoken';
 import User from '../models/users.js'; // or adjust the import path to your actual model
 import Account from '../models/accounts.js';
 import { verifyRecaptcha } from '../utils/verifyRecaptcha.js';
-import { loginSchema, createUserSchema } from '../utils/validators/auth.js';
+import { loginSchema, createUserSchema } from '../schemas/authSchemas.js';
 import generateAccountNumber from '../utils/generateAccountNumber.js';
 import { Op } from 'sequelize';
 
 
 export async function login(req, res) {
   try {
-
-    const { error, value } = loginSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-
     const { username, password, recaptchaToken } = value;
 
     if (!recaptchaToken) {
@@ -92,13 +88,10 @@ export async function createUser(req, res) {
   }
 }
 
-import { changePasswordSchema } from '../utils/validators/auth.js';
+import { changePasswordSchema } from '../schemas/authSchemas.js';
 
 export async function changePassword(req, res) {
   try {
-    const { error } = changePasswordSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-
     const { oldPassword, newPassword } = req.body;
 
     const user = await User.findByPk(req.user.id);

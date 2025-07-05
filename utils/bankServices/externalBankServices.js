@@ -22,7 +22,7 @@ export async function verifyExternalAccount(bank_code, account_number) {
     signer.end();
     const signature = signer.sign(privateKey, 'base64');
 
-    const response = await axios.post(`${bank.callback_url}/account-info`, {
+    const response = await axios.post(`${bank.callback_url}${bank.verify_account_url}`, {
         account_number,
         timestamp,
         bank_code: process.env.BANK_CODE,
