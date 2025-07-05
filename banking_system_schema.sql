@@ -85,7 +85,7 @@ CREATE TABLE linked_banks (
     shared_secret TEXT NOT NULL,
     callback_url TEXT,
     deposit_url TEXT,
-    verify_account_url TEXT;
+    verify_account_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -112,6 +112,8 @@ CREATE TABLE interbank_transactions (
 -- ===================================
 -- DEBT REMINDERS
 -- ===================================
+
+DROP TABLE IF EXISTS debt_reminders;
 
 CREATE TABLE debt_reminders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import axios from 'axios';
 import path from 'path';
 import { generateOtpCode } from '../utils/otp.js';
-import sendOtpToEmail from '../utils/email.js';
+import { sendOtpToEmail } from '../utils/email.js';
 import { sequelize } from '../db.js'
 import { Op } from 'sequelize';
 import { verifyExternalAccount } from '../utils/bankServices/externalBankServices.js';

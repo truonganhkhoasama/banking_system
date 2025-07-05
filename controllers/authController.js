@@ -10,7 +10,7 @@ import { Op } from 'sequelize';
 
 export async function login(req, res) {
   try {
-    const { username, password, recaptchaToken } = value;
+    const { username, password, recaptchaToken } = req.body;
 
     if (!recaptchaToken) {
       return res.status(400).json({ error: 'reCAPTCHA token is missing' });
@@ -48,11 +48,7 @@ export async function login(req, res) {
 
 export async function createUser(req, res) {
   try {
-
-    const { error, value } = createUserSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-
-    const { username, full_name, email, password, role } = value;
+    const { username, full_name, email, password, role } = req.body;
 
     if (!username || !email || !password || !role || !full_name) {
       return res.status(400).json({ error: 'Username, email, and password are required' });
@@ -117,7 +113,7 @@ export async function changePassword(req, res) {
 
 import OtpCode from '../models/otp_codes.js';
 import { generateOtpCode } from '../utils/otp.js';
-import sendOtpToEmail from '../utils/email.js';
+import { sendOtpToEmail } from '../utils/email.js';
 
 export const requestPasswordReset = async (req, res) => {
   try {

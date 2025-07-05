@@ -16,7 +16,7 @@ const transporter = createTransport({
  * @param {string} code - OTP code
  * @returns {Promise}
  */
-async function sendOtpToEmail(to, code) {
+export async function sendOtpToEmail(to, code) {
   const mailOptions = {
     from: `"Your Bank" <${process.env.EMAIL_USERNAME}>`,
     to,
@@ -34,4 +34,20 @@ async function sendOtpToEmail(to, code) {
   }
 }
 
-export default sendOtpToEmail;
+export async function sendEmail(to, message, subject = 'Notification') {
+  const mailOptions = {
+    from: `"Your Bank" <${process.env.EMAIL_USERNAME}>`,
+    to,
+    subject,
+    text: message,
+    html: `<p>${message.replace(/\n/g, '<br>')}</p>`
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent to ${to}: ${info.response}`);
+  } catch (error) {
+    console.error(`❌ Failed to send email to ${to}:`, error);
+    throw new Error('Failed to send notification email');
+  }
+}

@@ -2,7 +2,7 @@ import Account from '../models/accounts.js';
 import OtpCode from '../models/otp_codes.js';
 import Transaction from '../models/transactions.js';
 import User from '../models/users.js';
-import sendOtpToEmail from '../utils/email.js';
+import { sendOtpToEmail } from '../utils/email.js';
 import { generateOtpCode } from '../utils/otp.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../db.js'

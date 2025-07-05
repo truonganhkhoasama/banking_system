@@ -51,7 +51,7 @@ export async function getTransactionHistory(req, res) {
         fee: tx.fee,
         fee_payer: tx.fee_payer,
         description: tx.description,
-        timestamp: tx.createdAt,
+        timestamp: tx.createdat,
         from: {
           account_number: tx.from_account?.account_number,
           name: tx.from_account?.user?.full_name
@@ -86,7 +86,7 @@ export async function getTransactionHistory(req, res) {
         fee: 0,
         fee_payer: null,
         description: tx.description,
-        timestamp: tx.createdAt,
+        timestamp: tx.createdat,
         from: isOutgoing
           ? { account_number: account.account_number, name: req.user.full_name }
           : { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code },
@@ -153,7 +153,7 @@ export async function getAccountTransactionHistory(req, res) {
         fee: tx.fee,
         fee_payer: tx.fee_payer,
         description: tx.description,
-        timestamp: tx.createdAt,
+        timestamp: tx.createdat,
         from: {
           account_number: tx.from_account?.account_number,
           name: tx.from_account?.user?.full_name
@@ -185,7 +185,7 @@ export async function getAccountTransactionHistory(req, res) {
         fee: 0,
         fee_payer: null,
         description: tx.description,
-        timestamp: tx.createdAt,
+        timestamp: tx.createdat,
         from: isOutgoing
           ? { account_number: account.account_number, name: account.user?.full_name }
           : { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code },

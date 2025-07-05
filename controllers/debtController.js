@@ -4,7 +4,7 @@ import User from '../models/users.js'; // or adjust the import path to your actu
 import OtpCode from '../models/otp_codes.js';
 import Account from '../models/accounts.js';
 import { generateOtpCode } from '../utils/otp.js';
-import sendOtpToEmail from '../utils/email.js';
+import { sendEmail, sendOtpToEmail } from '../utils/email.js';
 import Transaction from '../models/transactions.js';
 import { sequelize } from '../db.js'
 
@@ -13,13 +13,28 @@ const TRANSFER_FEE = 1.00;
 
 export async function createDebtReminder(req, res) {
   try {
-    const { toUserId, amount, description } = req.body;
+    const { to_account_number, amount, description } = req.body;
 
+    // Look up recipient account
+    const recipientAccount = await Account.findOne({
+      where: { account_number: to_account_number },
+    });
+
+    if (!recipientAccount) {
+      return res.status(404).json({ error: 'Recipient account not found' });
+    }
+
+    // Prevent self-reminding
+    if (recipientAccount.user_id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot send a debt reminder to yourself' });
+    }
+
+    // Create reminder with user_id, not account_id
     const reminder = await DebtReminder.create({
       from_user_id: req.user.id,
-      to_user_id: toUserId,
+      to_user_id: recipientAccount.user_id,
       amount,
-      description,
+      description
     });
 
     res.status(201).json(reminder);
@@ -61,18 +76,58 @@ export async function getAllDebtReminders(req, res) {
 
 export async function deleteDebtReminder(req, res) {
   try {
-    const reminder = await DebtReminder.findByPk(req.params.id);
+    const { reason } = req.body;
+
+    const reminder = await DebtReminder.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'from_user', attributes: ['id', 'email', 'full_name'] },
+        { model: User, as: 'to_user', attributes: ['id', 'email', 'full_name'] }
+      ]
+    });
+
     if (!reminder) return res.status(404).json({ error: 'Not found' });
 
-    if (reminder.status !== 'pending') return res.status(400).json({ error: 'Cannot cancel non-pending reminder' });
-    if (reminder.from_user_id !== req.user.id && reminder.to_user_id !== req.user.id)
+    if (reminder.status !== 'pending')
+      return res.status(400).json({ error: 'Cannot cancel non-pending reminder' });
+
+    const currentUserId = req.user.id;
+
+    if (
+      reminder.from_user_id !== currentUserId &&
+      reminder.to_user_id !== currentUserId
+    ) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
 
     reminder.status = 'cancelled';
     await reminder.save();
 
-    res.json({ message: 'Reminder cancelled' });
+    // Determine who to notify
+    let recipient = null;
+    let message = '';
+
+    if (reminder.from_user_id === currentUserId) {
+      // Creator cancels ➝ notify debtor
+      recipient = reminder.to_user;
+      message = `${reminder.from_user.full_name} has cancelled a debt reminder sent to you for ${reminder.amount}.\nReason: ${reason}`;
+    } else {
+      // Debtor cancels ➝ notify creator
+      recipient = reminder.from_user;
+      message = `${reminder.to_user.full_name} has cancelled the debt reminder you sent for ${reminder.amount}.\nReason: ${reason}`;
+    }
+
+    if (recipient?.email) {
+      try {
+        await sendEmail(recipient.email, message);
+      } catch (emailErr) {
+        console.error(`Failed to send notification:`, emailErr);
+        // Still continue — cancellation succeeded
+      }
+    }
+
+    res.json({ message: 'Reminder cancelled and notification sent.' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 }

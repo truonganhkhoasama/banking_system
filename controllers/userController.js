@@ -137,7 +137,7 @@ export async function getAllEmployees(req, res) {
 
 export async function createEmployee(req, res) {
   try {
-    const { username, full_name, email, password } = value;
+    const { username, full_name, email, password } = req.body;
 
     const existingEmail = await User.findOne({ where: { email } });
     if (existingEmail) return res.status(400).json({ error: 'Email already in use' });
