@@ -5,7 +5,7 @@ export const queryAccountInfoSchema = Joi.object({
     timestamp: Joi.number().required(),
     bank_code: Joi.string().required(),
     hash: Joi.string().required(),
-    signature: Joi.string().required(),
+    // signature: Joi.string().required(),
 });
 
 export const depositSchema = Joi.object({
