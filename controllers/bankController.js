@@ -20,7 +20,7 @@ const OTP_EXPIRY_MINUTES = 5;
 
 export async function queryAccountInfo(req, res) {
     try {
-        const { account_number, timestamp, bank_code, hash, signature } = req.body;
+        const { account_number, timestamp, bank_code, hash } = req.body;
 
         if (!isFresh(timestamp)) {
             return res.status(400).json({ error: 'Request expired' });
@@ -39,18 +39,15 @@ export async function queryAccountInfo(req, res) {
             return res.status(403).json({ error: 'Invalid hash' });
         }
 
-        if (!verifySignature(payload, signature, bank.public_key)) {
-            return res.status(403).json({ error: 'Invalid signature' });
-        }
-
         const account = await Account.findOne({
             where: { account_number },
             include: {
                 model: User,
                 as: 'user',
-                attributes: ['full_name'], // or whatever fields you want from the Users table
+                attributes: ['full_name'],
             },
-        }); if (!account) return res.status(404).json({ error: 'Account not found' });
+        });
+        if (!account) return res.status(404).json({ error: 'Account not found' });
 
         const responseData = {
             account_number: account.account_number,
@@ -58,20 +55,12 @@ export async function queryAccountInfo(req, res) {
             balance: account.balance,
         };
 
-        const privateKeyPath = path.join(process.cwd(), 'bank_system_private.pem');
-        const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
-
-        const responseSignature = signPayload(privateKey, responseData);
-
-        return res.json({
-            data: responseData,
-            signature: responseSignature,
-        });
+        return res.json({ data: responseData });
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: 'Internal error' });
     }
-};
+}
 
 
 export async function queryExternalAccountInfo(req, res) {
@@ -157,20 +146,20 @@ export async function initiateExternalTransfer(req, res) {
         const userId = req.user.id;
 
         const fromAccount = await Account.findOne({ where: { user_id: userId } });
-
         if (!fromAccount) {
             return res.status(400).json({ message: 'Invalid sender account' });
         }
 
-        if (!to_account_number || typeof to_account_number !== 'string') {
-            return res.status(400).json({ message: 'Invalid destination account number' });
+        // 3. Validate target bank
+        const linkedBank = await LinkedBank.findOne({ where: { bank_code: bank_code } });
+        if (!linkedBank || !linkedBank.is_active) {
+            return res.status(400).json({ message: 'Invalid or inactive target bank' });
         }
 
-        const verification = await verifyExternalAccount({
+        const verification = await verifyExternalAccount(
             bank_code,
-            account_number: to_account_number
-        });
-
+            to_account_number
+        );
         if (!verification.success) {
             return res.status(400).json({ message: verification.reason || 'Destination account not found at the specified bank' });
         }
@@ -233,10 +222,17 @@ export async function externalDepositToLinkedBank(req, res) {
             return res.status(400).json({ message: 'Invalid sender account' });
         }
 
-        const verification = await verifyExternalAccount({
+        // 3. Validate target bank
+        const linkedBank = await LinkedBank.findOne({ where: { bank_code } });
+        if (!linkedBank || !linkedBank.is_active) {
+            await t.rollback();
+            return res.status(400).json({ message: 'Invalid or inactive target bank' });
+        }
+
+        const verification = await verifyExternalAccount(
             bank_code,
-            account_number: to_account_number
-        });
+            to_account_number
+        );
         if (!verification.success) {
             await t.rollback();
             return res.status(400).json({ message: verification.reason || 'Destination account not found at the specified bank' });
@@ -248,12 +244,7 @@ export async function externalDepositToLinkedBank(req, res) {
             return res.status(400).json({ message: 'Insufficient balance for transfer and fee' });
         }
 
-        // 3. Validate target bank
-        const linkedBank = await LinkedBank.findOne({ where: { bank_code } });
-        if (!linkedBank || !linkedBank.is_active) {
-            await t.rollback();
-            return res.status(400).json({ message: 'Invalid or inactive target bank' });
-        }
+
 
         // 4. Deduct funds and log transaction
         await fromAccount.update(

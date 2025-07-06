@@ -83,8 +83,8 @@ export async function getTransactionHistory(req, res) {
         label: isOutgoing ? 'Chuyển liên ngân hàng' : 'Nhận liên ngân hàng',
         direction: isOutgoing ? 'sent' : 'received',
         amount: tx.amount,
-        fee: 0,
-        fee_payer: null,
+        fee: tx.fee,
+        fee_payer: isOutgoing ? 'sender' : 'receiver',
         description: tx.description,
         timestamp: tx.createdat,
         from: isOutgoing
