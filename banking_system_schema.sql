@@ -113,7 +113,7 @@ CREATE TABLE interbank_transactions (
 -- DEBT REMINDERS
 -- ===================================
 
-DROP TABLE IF EXISTS debt_reminders;
+-- DROP TABLE IF EXISTS debt_reminders;
 
 CREATE TABLE debt_reminders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
