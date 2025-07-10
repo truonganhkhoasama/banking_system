@@ -80,27 +80,26 @@ export async function depositToAccount(req, res) {
     try {
         const { account_number, amount, timestamp, bank_code, hash, signature, message, from_account_number } = req.body;
 
-        // 1. Freshness check
+        // Freshness check
         if (!isFresh(timestamp)) {
             return res.status(400).json({ error: 'Request expired' });
         }
 
-        // 2. Linked bank verification
+        // Linked bank verification
         const bank = await LinkedBank.findOne({ where: { bank_code } });
         if (!bank) return res.status(403).json({ error: 'Unknown bank' });
 
-        // 3. Shared secret + hash validation
+        // Shared secret + hash validation
         const payload = `${account_number}.${from_account_number}.${amount}.${timestamp}`;
         if (!verifyHMAC(payload, bank.shared_secret, hash)) {
             return res.status(403).json({ error: 'Invalid hash' });
         }
 
-        // 4. Digital signature check (RSA/PGP)
+        // Digital signature check (RSA)
         if (!verifySignature(payload, signature, bank.public_key)) {
             return res.status(403).json({ error: 'Invalid signature' });
         }
 
-        // 5. Deposit logic
         const account = await Account.findOne({ where: { account_number } });
         if (!account) return res.status(404).json({ error: 'Account not found' });
 
@@ -150,7 +149,6 @@ export async function initiateExternalTransfer(req, res) {
             return res.status(400).json({ message: 'Invalid sender account' });
         }
 
-        // 3. Validate target bank
         const linkedBank = await LinkedBank.findOne({ where: { bank_code: bank_code } });
         if (!linkedBank || !linkedBank.is_active) {
             return res.status(400).json({ message: 'Invalid or inactive target bank' });
@@ -169,7 +167,6 @@ export async function initiateExternalTransfer(req, res) {
             return res.status(400).json({ message: 'Insufficient balance to cover amount and fee' });
         }
 
-        // Generate OTP
         const otp = generateOtpCode();;
         const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000); // 5 minutes
 
@@ -199,7 +196,7 @@ export async function externalDepositToLinkedBank(req, res) {
         const userId = req.user.id;
         const { bank_code, to_account_number, amount, otp_code, message } = req.body;
 
-        // 1. Validate OTP
+        // Validate OTP
         const otp = await OtpCode.findOne({
             where: {
                 user_id: userId,
@@ -215,14 +212,12 @@ export async function externalDepositToLinkedBank(req, res) {
             return res.status(400).json({ message: 'Invalid or expired OTP' });
         }
 
-        // 2. Validate sender and balance
         const fromAccount = await Account.findOne({ where: { user_id: userId } });
         if (!fromAccount) {
             await t.rollback();
             return res.status(400).json({ message: 'Invalid sender account' });
         }
 
-        // 3. Validate target bank
         const linkedBank = await LinkedBank.findOne({ where: { bank_code } });
         if (!linkedBank || !linkedBank.is_active) {
             await t.rollback();
@@ -244,9 +239,6 @@ export async function externalDepositToLinkedBank(req, res) {
             return res.status(400).json({ message: 'Insufficient balance for transfer and fee' });
         }
 
-
-
-        // 4. Deduct funds and log transaction
         await fromAccount.update(
             { balance: fromAccount.balance - totalDeduct },
             { transaction: t }
@@ -265,7 +257,6 @@ export async function externalDepositToLinkedBank(req, res) {
 
         await otp.update({ is_used: true }, { transaction: t });
 
-        // 5. Build secure payload
         const timestamp = Date.now();
         const depositPayload = `${to_account_number}.${fromAccount.account_number}.${amount}.${timestamp}`;
         const hash = crypto.createHmac('sha256', linkedBank.shared_secret).update(depositPayload).digest('hex');
@@ -285,11 +276,9 @@ export async function externalDepositToLinkedBank(req, res) {
             message: message || `Deposit from ${fromAccount.account_number}`,
         };
 
-        // 6. Send deposit request to external bank
         const response = await axios.post(`${linkedBank.callback_url}${linkedBank.deposit_url}`, depositRequestBody);
         const { data: responseData, signature: responseSignature } = response.data;
 
-        // 7. Validate response
         const isValidResponse = verifySignature(
             JSON.stringify(responseData),
             responseSignature,
@@ -299,7 +288,6 @@ export async function externalDepositToLinkedBank(req, res) {
         if (!isValidResponse) throw new Error('Invalid signature from target bank');
         if (responseData.status !== 'success') throw new Error('External deposit failed');
 
-        // 8. Finalize transaction
         await InterbankTransaction.update(
             { status: 'success' },
             {
@@ -314,7 +302,6 @@ export async function externalDepositToLinkedBank(req, res) {
     } catch (error) {
         await t.rollback();
 
-        // Attempt to mark the transaction as failed
         if (createdTx) {
             try {
                 await InterbankTransaction.update(

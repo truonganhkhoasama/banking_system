@@ -98,7 +98,7 @@ export async function createUser(req, res) {
     });
 
     if (role === 'customer') {
-      const accountNumber = (await generateAccountNumber()).toString(); // custom function to generate unique number
+      const accountNumber = (await generateAccountNumber()).toString();
       await Account.create({
         user_id: newUser.id,
         account_number: accountNumber

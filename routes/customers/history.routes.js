@@ -5,6 +5,6 @@ import authorizeRoles from '../../middleware/authorizeRoles.js';
 
 const router = express.Router();
 
-router.get('/history',authenticateToken, authorizeRoles('customer'), getTransactionHistory);
+router.get('/',authenticateToken, authorizeRoles('customer'), getTransactionHistory);
 
 export default router;

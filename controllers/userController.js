@@ -1,7 +1,7 @@
 import { hash, compare } from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { models } from '../db.js'; // ✅ Import từ file db.js mà bạn đã config
-import User from '../models/users.js'; // Adjust the import path to your actual model
+import { models } from '../db.js';
+import User from '../models/users.js';
 import { createUserSchema, loginSchema } from '../schemas/authSchemas.js';
 
 // Get all users
@@ -157,7 +157,7 @@ export async function createEmployee(req, res) {
       full_name,
       email,
       password: hashedPassword,
-      role: 'employee' // fixed to employee
+      role: 'employee'
     });
 
     const { password: _, ...employeeData } = newEmployee.toJSON();
@@ -182,7 +182,6 @@ export async function updateEmployee(req, res) {
 
     const { username, full_name, email, password, is_active } = req.body;
 
-    // Check for duplicate email/username if they're changing
     if (email && email !== employee.email) {
       const emailExists = await User.findOne({ where: { email } });
       if (emailExists) {
@@ -197,7 +196,6 @@ export async function updateEmployee(req, res) {
       }
     }
 
-    // Only hash password if it's being updated
     let updatedPassword = employee.password;
     if (password) {
       updatedPassword = await hash(password, 10);

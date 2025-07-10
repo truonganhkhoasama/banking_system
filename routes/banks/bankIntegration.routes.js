@@ -1,7 +1,6 @@
 import express from 'express';
 const router = express.Router();
 
-// import { verifySignature } from '../middlewares/verifySignature.js';
 import { depositToAccount, externalDepositToLinkedBank, initiateExternalTransfer, queryAccountInfo, queryExternalAccountInfo } from '../../controllers/bankController.js';
 import authenticateToken from '../../middleware/authMiddleware.js';
 import authorizeRoles from '../../middleware/authorizeRoles.js';

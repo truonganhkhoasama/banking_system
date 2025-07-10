@@ -7,10 +7,10 @@ import { confirmDebtPayment, createDebtReminder, deleteDebtReminder, getAllDebtR
 import validateSchema from '../../middleware/validateSchema.js';
 import { cancelReminderSchema, confirmDebtPaymentSchema, debtReminderSchema } from '../../schemas/debtReminderSchemas.js';
 
-router.post('/debt/create', authenticateToken, authorizeRoles('customer'), validateSchema(debtReminderSchema), createDebtReminder);
-router.get('/debt', authenticateToken, authorizeRoles('customer'), getAllDebtReminders);
-router.delete('/debt/:id', authenticateToken, authorizeRoles('customer'), validateSchema(cancelReminderSchema), deleteDebtReminder);
-router.post('/debt/pay/:id', authenticateToken, authorizeRoles('customer'), initiateDebtPayment);
-router.post('/debt/confirm/:id', authenticateToken, authorizeRoles('customer'), validateSchema(confirmDebtPaymentSchema), confirmDebtPayment);
+router.post('/create', authenticateToken, authorizeRoles('customer'), validateSchema(debtReminderSchema), createDebtReminder);
+router.get('/', authenticateToken, authorizeRoles('customer'), getAllDebtReminders);
+router.delete('/:id', authenticateToken, authorizeRoles('customer'), validateSchema(cancelReminderSchema), deleteDebtReminder);
+router.post('/pay/:id', authenticateToken, authorizeRoles('customer'), initiateDebtPayment);
+router.post('/confirm/:id', authenticateToken, authorizeRoles('customer'), validateSchema(confirmDebtPaymentSchema), confirmDebtPayment);
 
 export default router;

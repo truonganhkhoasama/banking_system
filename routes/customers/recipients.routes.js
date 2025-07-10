@@ -7,9 +7,9 @@ import { createRecipient, deleteRecipient, getAllRecipients, updateRecipient } f
 import validateSchema from '../../middleware/validateSchema.js';
 import { createRecipientSchema, updateRecipientSchema } from '../../schemas/recipientSchemas.js';
 
-router.get('/recipients', authenticateToken, authorizeRoles('customer'), getAllRecipients);
-router.post('/recipients', authenticateToken, authorizeRoles('customer'), validateSchema(createRecipientSchema), createRecipient);
-router.put('/recipients/:id', authenticateToken, authorizeRoles('customer'), validateSchema(updateRecipientSchema), updateRecipient);
-router.delete('/recipients/:id', authenticateToken, authorizeRoles('customer'), deleteRecipient);
+router.get('/', authenticateToken, authorizeRoles('customer'), getAllRecipients);
+router.post('/', authenticateToken, authorizeRoles('customer'), validateSchema(createRecipientSchema), createRecipient);
+router.put('/:id', authenticateToken, authorizeRoles('customer'), validateSchema(updateRecipientSchema), updateRecipient);
+router.delete('/:id', authenticateToken, authorizeRoles('customer'), deleteRecipient);
 
 export default router;

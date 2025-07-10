@@ -63,7 +63,7 @@ export async function getAllDebtReminders(req, res) {
         {
           model: User,
           as: 'from_user',
-          attributes: ['full_name', 'email'], // customize fields
+          attributes: ['full_name', 'email'],
         },
         {
           model: User,
@@ -219,7 +219,6 @@ export const confirmDebtPayment = async (req, res) => {
       return res.status(400).json({ message: 'Insufficient balance to pay debt and fee' });
 
     await sequelize.transaction(async (t) => {
-      // Update balances
       await fromAccount.update(
         { balance: fromAccount.balance - total },
         { transaction: t }
@@ -230,13 +229,10 @@ export const confirmDebtPayment = async (req, res) => {
         { transaction: t }
       );
 
-      // Mark reminder as paid
       await reminder.update({ status: 'paid' }, { transaction: t });
 
-      // Mark OTP as used
       await otp.update({ is_used: true }, { transaction: t });
 
-      // Create transaction log
       await Transaction.create(
         {
           from_account_id: fromAccount.id,
