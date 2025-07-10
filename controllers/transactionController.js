@@ -267,3 +267,53 @@ export async function getInterbankReconciliation(req, res) {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export async function getInterbankRawTransactions(req, res) {
+  try {
+    const start = req.query.start ? new Date(req.query.start) : moment().startOf('month').toDate();
+    const end = req.query.end ? new Date(req.query.end) : moment().endOf('month').toDate();
+    const bankCode = req.query.bank_code;
+
+    const transactions = await InterbankTransaction.findAll({
+      where: {
+        status: 'success',
+        createdat: {
+          [Op.between]: [start, end],
+        },
+        ...(bankCode && { bank_code: bankCode }),
+      },
+      include: [
+        {
+          model: LinkedBank,
+          as: 'bank_code_linked_bank',
+          attributes: ['bank_code', 'bank_name'],
+        },
+        {
+          model: Account,
+          as: 'internal_account',
+          include: [{ model: User, as: 'user', attributes: ['full_name'] }]
+        }
+      ],
+      order: [['createdat', 'DESC']]
+    });
+
+    const result = transactions.map(tx => ({
+      id: tx.id,
+      bank_code: tx.bank_code,
+      bank_name: tx.bank_code_linked_bank?.bank_name || '',
+      direction: tx.direction, // 'incoming' or 'outgoing'
+      amount: tx.amount,
+      fee: tx.fee,
+      description: tx.description,
+      timestamp: tx.createdat,
+      external_account_number: tx.external_account_number,
+      internal_account_number: tx.internal_account?.account_number,
+      internal_account_holder: tx.internal_account?.user?.full_name || '',
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error("Raw transaction fetch error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
