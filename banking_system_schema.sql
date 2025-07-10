@@ -60,6 +60,20 @@ CREATE TABLE transactions (
 -- BENEFICIARIES & INTERBANK
 -- ===================================
 
+CREATE TABLE linked_banks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bank_code VARCHAR(20) UNIQUE NOT NULL,
+    bank_name VARCHAR(100) NOT NULL,
+    public_key TEXT NOT NULL,
+    shared_secret TEXT NOT NULL,
+    callback_url TEXT,
+    deposit_url TEXT,
+    verify_account_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE beneficiaries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
@@ -75,20 +89,6 @@ CREATE TABLE beneficiaries (
     CONSTRAINT fk_bank_code FOREIGN KEY (bank_code) REFERENCES linked_banks(bank_code) ON DELETE SET NULL,
 
     CONSTRAINT unique_beneficiary UNIQUE (user_id, account_number, bank_code)
-);
-
-CREATE TABLE linked_banks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bank_code VARCHAR(20) UNIQUE NOT NULL,
-    bank_name VARCHAR(100) NOT NULL,
-    public_key TEXT NOT NULL,
-    shared_secret TEXT NOT NULL,
-    callback_url TEXT,
-    deposit_url TEXT,
-    verify_account_url TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE interbank_transactions (
