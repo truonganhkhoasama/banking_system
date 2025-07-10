@@ -36,7 +36,7 @@ export async function sendOtpToEmail(to, code) {
 
 export async function sendEmail(to, message, subject = 'Notification') {
   const mailOptions = {
-    from: `"Your Bank" <${process.env.EMAIL_USERNAME}>`,
+    from: `${process.env.BANK_NAME} <${process.env.EMAIL_USERNAME}>`,
     to,
     subject,
     text: message,

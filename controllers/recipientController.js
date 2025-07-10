@@ -1,4 +1,6 @@
 import Recipient from '../models/beneficiaries.js';
+import Account from '../models/accounts.js';
+import User from '../models/users.js';
 import { verifyExternalAccount } from '../utils/bankServices/externalBankServices.js';
 
 export async function getAllRecipients(req, res) {
@@ -22,20 +24,35 @@ export async function createRecipient(req, res) {
     const userId = req.user.id;
     const { account_number, bank_code: inputBankCode, alias_name } = req.body;
 
-    // Determine internal vs. external
     const is_internal = !inputBankCode;
     const bank_code = is_internal ? null : inputBankCode;
 
-    // If external, validate that bank_code exists in linked_banks
-    if (!is_internal) {
+    let finalAliasName = alias_name;
+
+    if (is_internal) {
+      const account = await Account.findOne({
+        where: { account_number },
+        include: [{ model: User, as: 'user', attributes: ['full_name'] }]
+      });
+
+      if (!account) {
+        return res.status(404).json({ message: 'Internal account not found.' });
+      }
+
+      if (!finalAliasName) {
+        finalAliasName = account.User?.full_name || 'Unnamed User';
+      }
+    } else {
       try {
-        await verifyExternalAccount(bank_code, account_number);
+        const verified = await verifyExternalAccount(bank_code, account_number);
+        if (!finalAliasName) {
+          finalAliasName = verified?.account_name || 'External User';
+        }
       } catch (err) {
         return res.status(400).json({ message: `External account verification failed: ${err.message}` });
       }
     }
 
-    // Check for duplicates (NULL-safe)
     const exists = await Recipient.findOne({
       where: {
         user_id: userId,
@@ -48,12 +65,11 @@ export async function createRecipient(req, res) {
       return res.status(409).json({ message: 'Recipient already exists.' });
     }
 
-    // Create recipient
     const recipient = await Recipient.create({
       user_id: userId,
       account_number,
       bank_code,
-      alias_name,
+      alias_name: finalAliasName,
       is_internal,
     });
 

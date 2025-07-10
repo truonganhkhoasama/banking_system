@@ -15,7 +15,6 @@ export async function createDebtReminder(req, res) {
   try {
     const { to_account_number, amount, description } = req.body;
 
-    // Look up recipient account
     const recipientAccount = await Account.findOne({
       where: { account_number: to_account_number },
     });
@@ -29,13 +28,20 @@ export async function createDebtReminder(req, res) {
       return res.status(400).json({ error: 'You cannot send a debt reminder to yourself' });
     }
 
-    // Create reminder with user_id, not account_id
     const reminder = await DebtReminder.create({
       from_user_id: req.user.id,
       to_user_id: recipientAccount.user_id,
       amount,
       description
     });
+
+    const recipientUser = await User.findByPk(recipientAccount.user_id);
+    const user = await User.findByPk(req.user.id);
+
+    if (recipientUser?.email) {
+      const emailMessage = `You have received a debt reminder of ${amount} from ${user.full_name}.\n\nDescription: ${description}`;
+      await sendEmail(recipientUser.email, emailMessage, 'New Debt Reminder');
+    }
 
     res.status(201).json(reminder);
   } catch (err) {
@@ -102,16 +108,15 @@ export async function deleteDebtReminder(req, res) {
     reminder.status = 'cancelled';
     await reminder.save();
 
-    // Determine who to notify
     let recipient = null;
     let message = '';
 
     if (reminder.from_user_id === currentUserId) {
-      // Creator cancels ➝ notify debtor
+      // notify debtor
       recipient = reminder.to_user;
       message = `${reminder.from_user.full_name} has cancelled a debt reminder sent to you for ${reminder.amount}.\nReason: ${reason}`;
     } else {
-      // Debtor cancels ➝ notify creator
+      // notify creator
       recipient = reminder.from_user;
       message = `${reminder.to_user.full_name} has cancelled the debt reminder you sent for ${reminder.amount}.\nReason: ${reason}`;
     }
@@ -121,7 +126,6 @@ export async function deleteDebtReminder(req, res) {
         await sendEmail(recipient.email, message);
       } catch (emailErr) {
         console.error(`Failed to send notification:`, emailErr);
-        // Still continue — cancellation succeeded
       }
     }
 
