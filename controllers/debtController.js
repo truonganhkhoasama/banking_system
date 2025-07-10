@@ -9,7 +9,7 @@ import Transaction from '../models/transactions.js';
 import { sequelize } from '../db.js'
 
 
-const TRANSFER_FEE = 1.00;
+const TRANSFER_FEE = 5000.00;
 
 export async function createDebtReminder(req, res) {
   try {

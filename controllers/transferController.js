@@ -7,7 +7,7 @@ import { generateOtpCode } from '../utils/otp.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../db.js'
 
-const TRANSFER_FEE = 1.00;
+const TRANSFER_FEE = 5000.00;
 
 const OTP_EXPIRY_MINUTES = 5;
 

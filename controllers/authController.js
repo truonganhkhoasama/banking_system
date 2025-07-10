@@ -32,17 +32,47 @@ export async function login(req, res) {
     if (!match) return res.status(400).json({ error: 'Invalid username or password' });
 
     // 🪪 Step 4: Generate JWT
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+    );
+
+    // Generate refresh token (long-lived)
+    const refreshToken = jwt.sign(
+      { id: user.id },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '1d' }
     );
 
     const { password: _, ...userData } = user.toJSON();
-    res.json({ message: 'Login successful', token, user: userData });
+    res.json({ message: 'Login successful', accessToken, refreshToken, user: userData });
+
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: error.message });
+  }
+}
+
+export function refreshToken(req, res) {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Refresh token is required' });
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+
+    const newAccessToken = jwt.sign(
+      { id: payload.id, email: payload.email, role: payload.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN } // e.g. 15m
+    );
+
+    res.json({ accessToken: newAccessToken });
+  } catch (err) {
+    return res.status(403).json({ error: 'Invalid or expired refresh token' });
   }
 }
 

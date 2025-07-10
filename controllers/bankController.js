@@ -14,7 +14,7 @@ import { sequelize } from '../db.js'
 import { Op } from 'sequelize';
 import { verifyExternalAccount } from '../utils/bankServices/externalBankServices.js';
 
-const TRANSFER_FEE = 1.00;
+const TRANSFER_FEE = 5000.00;
 const OTP_EXPIRY_MINUTES = 5;
 
 
