@@ -95,7 +95,7 @@ export const confirmTransfer = async (req, res) => {
       );
 
       await toAccount.update(
-        { balance: toAccount.balance + amountReceived },
+        { balance: parseFloat(toAccount.balance) + amountReceived },
         { transaction: t }
       );
 

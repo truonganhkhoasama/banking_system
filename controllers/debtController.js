@@ -248,6 +248,15 @@ export const confirmDebtPayment = async (req, res) => {
       );
     });
 
+    const creditor = await User.findByPk(reminder.from_user_id);
+    if (creditor && creditor.email) {
+      const message = `The debt reminder for the amount of ${amount.toLocaleString()} has been successfully paid.
+      Please check your account to confirm the transaction. Best regards,  
+${process.env.BANK_NAME}
+      `;
+      await sendEmail(creditor.email, message, 'Notification: Your debt reminder was paid');
+    }
+
     return res.json({ message: 'Debt payment successful' });
   } catch (error) {
     console.error('Error in confirmDebtPayment:', error);
