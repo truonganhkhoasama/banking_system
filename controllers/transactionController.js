@@ -11,6 +11,10 @@ export async function getTransactionHistory(req, res) {
   try {
     const userId = req.user.id;
 
+    const user = await User.findByPk(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+
     const account = await Account.findOne({ where: { user_id: userId } });
     if (!account) return res.status(404).json({ message: 'Account not found' });
 
@@ -88,13 +92,15 @@ export async function getTransactionHistory(req, res) {
         description: tx.description,
         timestamp: tx.createdat,
         from: isOutgoing
-          ? { account_number: account.account_number, name: req.user.full_name }
+          ? { account_number: account.account_number, name: user.full_name }
           : { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code },
         to: isOutgoing
           ? { account_number: tx.external_account_number, name: tx.bank_code_linked_bank?.bank_name || tx.bank_code }
-          : { account_number: account.account_number, name: req.user.full_name }
+          : { account_number: account.account_number, name: user.full_name }
       };
     });
+
+    console.log(req.user)
 
     const allTxs = [...formattedInternal, ...formattedInterbank];
     allTxs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -111,7 +117,10 @@ export async function getAccountTransactionHistory(req, res) {
   try {
     const { account_number } = req.params;
 
-    const account = await Account.findOne({ where: { account_number } });
+    const account = await Account.findOne({
+  where: { account_number },
+  include: [{ model: User, as: 'user' }] // ✅ Add this
+});
     if (!account) {
       return res.status(404).json({ message: 'Account not found' });
     }
@@ -183,7 +192,7 @@ export async function getAccountTransactionHistory(req, res) {
         direction: isOutgoing ? 'sent' : 'received',
         amount: tx.amount,
         fee: 0,
-        fee_payer: null,
+        fee_payer: isOutgoing? "sender": "receiver",
         description: tx.description,
         timestamp: tx.createdat,
         from: isOutgoing

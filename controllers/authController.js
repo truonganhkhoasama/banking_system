@@ -16,29 +16,24 @@ export async function login(req, res) {
       return res.status(400).json({ error: 'reCAPTCHA token is missing' });
     }
 
-    // 🔒 Step 1: Verify reCAPTCHA token with Google
     const data = await verifyRecaptcha(recaptchaToken);
 
     if (!data.success) {
       return res.status(403).json({ error: 'Failed reCAPTCHA verification' });
     }
 
-    // 🔑 Step 2: Find user by username
     const user = await User.findOne({ where: { username } });
     if (!user) return res.status(404).json({ error: 'Invalid username or password' });
 
-    // 🔐 Step 3: Compare password
     const match = await compare(password, user.password);
     if (!match) return res.status(400).json({ error: 'Invalid username or password' });
 
-    // 🪪 Step 4: Generate JWT
     const accessToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
-    // Generate refresh token (long-lived)
     const refreshToken = jwt.sign(
       { id: user.id },
       process.env.REFRESH_TOKEN_SECRET,
@@ -54,8 +49,8 @@ export async function login(req, res) {
   }
 }
 
-export function refreshToken(req, res) {
-  const { token } = req.body;
+export async function refreshToken(req, res) {
+  const token = req.headers['authorization']?.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({ error: 'Refresh token is required' });
@@ -63,11 +58,14 @@ export function refreshToken(req, res) {
 
   try {
     const payload = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+    const user = await User.findByPk(payload.id);
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     const newAccessToken = jwt.sign(
-      { id: payload.id, email: payload.email, role: payload.role },
+      { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN } // e.g. 15m
+      { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
     res.json({ accessToken: newAccessToken });

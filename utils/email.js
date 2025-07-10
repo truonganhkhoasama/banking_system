@@ -18,7 +18,7 @@ const transporter = createTransport({
  */
 export async function sendOtpToEmail(to, code) {
   const mailOptions = {
-    from: `"Your Bank" <${process.env.EMAIL_USERNAME}>`,
+    from: `${process.env.BANK_NAME} <${process.env.EMAIL_USERNAME}>`,
     to,
     subject: 'Your OTP Code',
     text: `Your OTP code is: ${code}. It will expire in 5 minutes.`,
