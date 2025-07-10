@@ -17,11 +17,15 @@ const app = express();
 app.use(express.json());
 app.use('/auth', authRoutes);
 app.use('/employees', employeeRoutes);
-app.use('/customers/accounts', accountRoutes);
-app.use('/customers/recipients', recipientRoutes);
-app.use('/customers/transfer', transferRoutes);
-app.use('/customers/debt', debtRoutes);
-app.use('/customers/history', historyRoutes);
+
+const customersRouter = express.Router();
+customersRouter.use('/accounts', accountRoutes);
+customersRouter.use('/recipients', recipientRoutes);
+customersRouter.use('/transfers', transferRoutes);
+customersRouter.use('/debts', debtRoutes);
+customersRouter.use('/history', historyRoutes);
+
+app.use('/customers', customersRouter);
 app.use('/admin', adminRoutes);
 app.use('/banks', bankRoutes);
 

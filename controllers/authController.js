@@ -79,7 +79,7 @@ export async function createUser(req, res) {
     const { username, full_name, email, password, role } = req.body;
 
     if (!username || !email || !password || !role || !full_name) {
-      return res.status(400).json({ error: 'Username, email, and password are required' });
+      return res.status(400).json({ error: 'Username, email, password, role, and full name are required' });
     }
 
     const existingEmail = await User.findOne({ where: { email } });
@@ -97,17 +97,24 @@ export async function createUser(req, res) {
       role
     });
 
+    let account = null;
     if (role === 'customer') {
       const accountNumber = (await generateAccountNumber()).toString();
-      await Account.create({
+      account = await Account.create({
         user_id: newUser.id,
         account_number: accountNumber
       });
     }
 
     const { password: _, ...userData } = newUser.toJSON();
-    res.status(201).json(userData);
+    const response = {
+      ...userData,
+      ...(account && { account })  // include account only if created
+    };
+
+    res.status(201).json(response);
   } catch (error) {
+    console.error('Error creating user:', error);
     res.status(500).json({ error: error.message });
   }
 }
